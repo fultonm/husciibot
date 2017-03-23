@@ -2,6 +2,7 @@ import os
 import time
 import json
 import requests
+import sqlite3
 
 from Huscii import Huscii
 # from Huscii import id
@@ -10,6 +11,10 @@ from slackclient import SlackClient
 # starterbot's ID as an environment variable
 keys = Huscii()
 BOT_ID = keys.id
+
+# connect to database
+con = sqlite3.connect("husciidata.db")
+cur = con.cursor()
 
 # constants
 AT_BOT = "<@" + BOT_ID + ">"
@@ -28,16 +33,54 @@ def handle_command(command, channel):
         are valid commands. If so, then acts on the commands. If not,
         returns back what it needs for clarification.
     """
-    response = "Not sure what you mean. Use the *" + EXAMPLE_COMMAND + \
-               "* command with numbers, delimited by spaces."
+    response = "Something happened" 
+    
+    # "Not sure what you mean. Use the *" + EXAMPLE_COMMAND + \
+    #            "* command with numbers, delimited by spaces."
+    
+    # example command
     if command.startswith(EXAMPLE_COMMAND):
         response = "Sure...write some more code then I can do that!"
+    
+    # dict commands
     if command in responses:
         response = responses[command]
+    
+    # catfact
     if command.startswith('catfact'):
         call = requests.get('http://catfacts-api.appspot.com/api/facts?number=1')
         fact = json.loads(call.text)
         response = fact['facts'][0]
+
+    # new commands
+    if command.startswith("new"):
+        newCommand = command.split("new")[1].strip().lower()
+        commandList = newCommand.split(" ")
+        
+        # insert event
+        if newCommand.startswith("event") and len(commandList) == 4 and commandList[1].isdigit():
+            # print commandList[1], commandList[2], commandList[3]
+            cur.execute("INSERT INTO Events VALUES(?, ?, ?)", (commandList[1], commandList[2], commandList[3]))
+            con.commit()
+            response = "Event added"
+
+    # delete event
+    if command.startswith("delete event"):
+        deleteCommand = command.split("delete event")[1].strip().lower()
+        cur.execute("DELETE FROM Events WHERE Id == ?", deleteCommand)
+        response = "Event deleted"
+    
+    # list events
+    if command.startswith("list"):
+        listCommand = command.split("list")[1].strip().lower()
+        if listCommand.startswith("events"):
+            cur.execute("SELECT * FROM Events")
+            event_names = [en[0] for en in cur.description]
+            event = cur.fetchall()
+            response = "%s %-10s %s" % (event_names[0], event_names[1], event_names[2])
+
+            for row in event:    
+                response += "\n%2s %-10s %s" % row
 
     # return the response
     slack_client.api_call("chat.postMessage", channel=channel,
@@ -59,8 +102,15 @@ def parse_slack_output(slack_rtm_output):
                        output['channel']
     return None, None
 
+def makeTable():
+    # cur.execute("DROP TABLE IF EXISTS Events")
+    try:
+        cur.execute("CREATE TABLE Events(Id TEXT, TheDate TEXT, Name TEXT)")
+    except sqlite3.Error:
+        pass
 
 if __name__ == "__main__":
+    makeTable()
     READ_WEBSOCKET_DELAY = 1 # 1 second delay between reading from firehose
     if slack_client.rtm_connect():
         print("StarterBot connected and running!")
