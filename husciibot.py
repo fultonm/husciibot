@@ -1,123 +1,94 @@
 import os
 import time
+import datetime
 import json
 import requests
-import sqlite3
+import exifread
+from clarifai import rest
+from clarifai.rest import ClarifaiApp
+from clarifai.rest import Image as ClImage
 
-from Huscii import Huscii
-# from Huscii import id
-from slackclient import SlackClient
+  # The client takes the `APP_ID` and `APP_SECRET` you created in your Clarifai
+  # account. You can set these variables in your environment as:
+def getConceptsinImage( imageinput ):
+	CLARIFAI_APP_ID = 'Re11ornY9K5Hd06foa9uCknPoaEY9y0w0MpHcGTa'
+	CLARIFAI_APP_SECRET = 'XMEAHfXNyfA8TM1x76F1jQKJWcl7zBLRdFJuIdSN'
+	app = ClarifaiApp(app_id=CLARIFAI_APP_ID,app_secret=CLARIFAI_APP_SECRET)
+	model = app.models.get('general-v1.3')
+	res = app.tag_files([imageinput])
 
-# starterbot's ID as an environment variable
-keys = Huscii()
-BOT_ID = keys.id
-
-# connect to database
-con = sqlite3.connect("husciidata.db")
-cur = con.cursor()
-
-# constants
-AT_BOT = "<@" + BOT_ID + ">"
-EXAMPLE_COMMAND = "do"
-
-# instantiate Slack & Twilio clients
-slack_client = SlackClient(keys.key)
-
-responses = {"dojo" : "Dojo is at Expedia in Bellevue every Friday 4:30-6:00 pm. The classes we have are Python, CodeCamp, Hour of Code, and Scratch.", \
-            "facebook" : "Join us on Facebook @ https://www.facebook.com/groups/UWTProgrammingClub/", \
-            "dawgden" : "Join us on Dawgden @ https://dawgden.tacoma.uw.edu/organization/HuSCII"}
-
-def handle_command(command, channel):
-    """
-        Receives commands directed at the bot and determines if they
-        are valid commands. If so, then acts on the commands. If not,
-        returns back what it needs for clarification.
-    """
-    response = "Something happened" 
-    
-    # "Not sure what you mean. Use the *" + EXAMPLE_COMMAND + \
-    #            "* command with numbers, delimited by spaces."
-    
-    # example command
-    if command.startswith(EXAMPLE_COMMAND):
-        response = "Sure...write some more code then I can do that!"
-    
-    # dict commands
-    if command in responses:
-        response = responses[command]
-    
-    # catfact
-    if command.startswith('catfact'):
-        call = requests.get('http://catfacts-api.appspot.com/api/facts?number=1')
-        fact = json.loads(call.text)
-        response = fact['facts'][0]
-
-    # new commands
-    if command.startswith("new"):
-        newCommand = command.split("new")[1].strip().lower()
-        commandList = newCommand.split(" ")
-        
-        # insert event
-        if newCommand.startswith("event") and len(commandList) == 4 and commandList[1].isdigit():
-            # print commandList[1], commandList[2], commandList[3]
-            cur.execute("INSERT INTO Events VALUES(?, ?, ?)", (commandList[1], commandList[2], commandList[3]))
-            con.commit()
-            response = "Event added"
-
-    # delete event
-    if command.startswith("delete event"):
-        deleteCommand = command.split("delete event")[1].strip().lower()
-        cur.execute("DELETE FROM Events WHERE Id == ?", deleteCommand)
-        response = "Event deleted"
-    
-    # list events
-    if command.startswith("list"):
-        listCommand = command.split("list")[1].strip().lower()
-        if listCommand.startswith("events"):
-            cur.execute("SELECT * FROM Events")
-            event_names = [en[0] for en in cur.description]
-            event = cur.fetchall()
-            response = "%s %-10s %s" % (event_names[0], event_names[1], event_names[2])
-
-            for row in event:    
-                response += "\n%2s %-10s %s" % row
-
-    # return the response
-    slack_client.api_call("chat.postMessage", channel=channel,
-                          text=response, as_user=True)
-
-
-def parse_slack_output(slack_rtm_output):
-    """
-        The Slack Real Time Messaging API is an events firehose.
-        this parsing function returns None unless a message is
-        directed at the Bot, based on its ID.
-    """
-    output_list = slack_rtm_output
-    if output_list and len(output_list) > 0:
-        for output in output_list:
-            if output and 'text' in output and AT_BOT in output['text']:
-                # return text after the @ mention, whitespace removed
-                return output['text'].split(AT_BOT)[1].strip().lower(), \
-                       output['channel']
-    return None, None
-
-def makeTable():
-    # cur.execute("DROP TABLE IF EXISTS Events")
-    try:
-        cur.execute("CREATE TABLE Events(Id TEXT, TheDate TEXT, Name TEXT)")
-    except sqlite3.Error:
-        pass
+	probconcept = {}
+	for output in res['outputs']:
+		for data in output['data']['concepts']:
+			probconcept[data['name']] = data['value']
+	return probconcept
+#print(res['outputs'][0]['data']['concepts'][0]['name'])
 
 if __name__ == "__main__":
-    makeTable()
-    READ_WEBSOCKET_DELAY = 1 # 1 second delay between reading from firehose
-    if slack_client.rtm_connect():
-        print("StarterBot connected and running!")
-        while True:
-            command, channel = parse_slack_output(slack_client.rtm_read())
-            if command and channel:
-                handle_command(command, channel)
-            time.sleep(READ_WEBSOCKET_DELAY)
-    else:
-        print("Connection failed. Invalid Slack token or bot ID?")
+    # call = requests.get('http://api.openweathermap.org/data/2.5/weather?lat=47&lon=-122&APPID=045d20e4a83f4fe580531981ca805215')
+    # data = json.loads(call.text)
+    # print data
+
+    f = open('geotest2.jpg', 'rb')
+    tags = exifread.process_file(f)
+    # print tags.keys()
+
+    lon = tags['GPS GPSLongitude'].values[0].num
+    lonRef = tags['GPS GPSLongitudeRef'].values.encode('ascii', 'ingore')
+    lat = tags['GPS GPSLatitude'].values[0].num
+    latRef = tags['GPS GPSLatitudeRef'].values.encode('ascii', 'ingore')
+
+
+    if latRef == 'S':
+        lat = lat * -1
+    if lonRef == 'W':
+        lon = lon * -1
+
+    outputdic = {}
+
+    requrl = 'http://api.openweathermap.org/data/2.5/weather?lat=' + `lat` + '&lon=' + `lon` + '&APPID=045d20e4a83f4fe580531981ca805215'
+    call2 = requests.get(requrl)
+    data2 = json.loads(call2.text)
+    print data2
+
+    imageinput = 'geotest2.jpg'
+    outputdic = getConceptsinImage(imageinput)
+
+    date = tags['Image DateTime'].values.encode('ascii', 'ignore')
+    print date
+    utime = time.mktime(datetime.datetime.strptime(date, "%Y:%m:%d %H:%M:%S").timetuple())
+
+    outputdic[data2['weather'][0]['main']] = 1
+    outputdic[data2['weather'][0]['description']] = 1
+    if data2['wind']['speed'] > 4.5:
+        outputdic['windy'] = 1
+    if data2['sys']['sunset'] - utime < 1800 and data2['sys']['sunset'] - utime > -1800:
+        outputdic['sunset'] = 1
+    if data2['sys']['sunrise'] - utime < 1800 and data2['sys']['sunrise'] - utime > -1800:
+        outputdic['sunrise'] = 1
+    avgTemp = (data2['main']['temp_max'] + data2['main']['temp_min'])/2
+    if avgTemp < 273.15:
+        outputdic['freezing'] = 1
+    if avgTemp < 283.15:
+        outputdic['cold'] = 1
+    if avgTemp > 293.15:
+        outputdic['warm'] = 1
+    if avgTemp > 303.15:
+        outputdic['hot'] = 1
+
+    concepts = outputdic.keys()
+    probvals = outputdic.values()
+    print(concepts)
+    print(probvals)
+
+    with open('hashes.json', 'w') as fp:
+        json_string = json.dumps(outputdic)
+        fp.write(json_string)
+        
+    # print utime
+
+    # print tags.keys()
+
+    # for tag in tags.keys():
+    #     if tag not in ('JPEGThumbnail', 'TIFFThumbnail', 'Filename', 'EXIF MakerNote'):
+    #         print "Key: %s, value %s" % (tag, tags[tag])
