@@ -34,6 +34,7 @@ def handle_command(command, channel):
         returns back what it needs for clarification.
     """
     response = "Something happened" 
+    print command
     
     # "Not sure what you mean. Use the *" + EXAMPLE_COMMAND + \
     #            "* command with numbers, delimited by spaces."
@@ -54,25 +55,56 @@ def handle_command(command, channel):
 
     # new commands
     if command.startswith("new"):
-        newCommand = command.split("new")[1].strip().lower()
+        newCommand = command.split("new")[1].strip()
         commandList = newCommand.split(" ")
         
         # insert event
-        if newCommand.startswith("event") and len(commandList) == 4 and commandList[1].isdigit():
+        if newCommand.startswith("event") and len(commandList) >= 4 and commandList[1].isdigit():
             # print commandList[1], commandList[2], commandList[3]
+            if len(commandList) > 4:
+                for index in range(4, len(commandList)):
+                    commandList[3] += " " + commandList[index]
             cur.execute("INSERT INTO Events VALUES(?, ?, ?)", (commandList[1], commandList[2], commandList[3]))
             con.commit()
             response = "Event added"
 
     # delete event
     if command.startswith("delete event"):
-        deleteCommand = command.split("delete event")[1].strip().lower()
+        deleteCommand = command.split("delete event")[1].strip()
         cur.execute("DELETE FROM Events WHERE Id == ?", deleteCommand)
         response = "Event deleted"
     
+    if command.startswith("event"):
+        eventCommand = command.split("event")
+        commandList = eventCommand[1].split(" ")
+
+        if commandList[1].startswith("add") and len(commandList) >= 4 and commandList[1].isdigit():
+            # print commandList[1], commandList[2], commandList[3]
+            if len(commandList) > 4:
+                for index in range(4, len(commandList)):
+                    commandList[3] += " " + commandList[index]
+            cur.execute("INSERT INTO Events VALUES(?, ?, ?)", (commandList[1], commandList[2], commandList[3]))
+            con.commit()
+            response = "Event added"
+
+        
+        if commandList[1].startswith("delete"):
+            deleteCommand = command.split("delete")[1].strip()
+            cur.execute("DELETE FROM Events WHERE Id == ?", deleteCommand)
+            response = "Event deleted"
+        
+        if commandList[1].startswith("list"):
+            cur.execute("SELECT * FROM Events")
+            event_names = [en[0] for en in cur.description]
+            event = cur.fetchall()
+            response = "%s %-10s %s" % (event_names[0], event_names[1], event_names[2])
+
+            for row in event:    
+                response += "\n%2s %-10s %s" % row
+
     # list events
     if command.startswith("list"):
-        listCommand = command.split("list")[1].strip().lower()
+        listCommand = command.split("list")[1].strip()
         if listCommand.startswith("events"):
             cur.execute("SELECT * FROM Events")
             event_names = [en[0] for en in cur.description]
@@ -98,7 +130,7 @@ def parse_slack_output(slack_rtm_output):
         for output in output_list:
             if output and 'text' in output and AT_BOT in output['text']:
                 # return text after the @ mention, whitespace removed
-                return output['text'].split(AT_BOT)[1].strip().lower(), \
+                return output['text'].split(AT_BOT)[1].strip(), \
                        output['channel']
     return None, None
 
