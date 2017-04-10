@@ -1,3 +1,8 @@
+"""
+                                                                
+Authors: Beebkips
+
+"""
 import os
 import time
 import json
@@ -8,9 +13,10 @@ from Huscii import Huscii
 # from Huscii import id
 from slackclient import SlackClient
 
-# starterbot's ID as an environment variable
+# get the keys off the key chain
 keys = Huscii()
 BOT_ID = keys.id
+slack_client = SlackClient(keys.key)
 
 # connect to database
 con = sqlite3.connect("husciidata.db")
@@ -20,14 +26,11 @@ cur = con.cursor()
 AT_BOT = "<@" + BOT_ID + ">"
 EXAMPLE_COMMAND = "do"
 
-# instantiate Slack & Twilio clients
-slack_client = SlackClient(keys.key)
-
 responses = {"dojo" : "Dojo is at Expedia in Bellevue every Friday 4:30-6:00 pm. The classes we have are Python, CodeCamp, Hour of Code, and Scratch.", \
             "facebook" : "Join us on Facebook @ https://www.facebook.com/groups/UWTProgrammingClub/", \
             "dawgden" : "Join us on Dawgden @ https://dawgden.tacoma.uw.edu/organization/HuSCII"}
 
-def handle_command(command, channel):
+def handle_command(command, channel, user):
     """
         Receives commands directed at the bot and determines if they
         are valid commands. If so, then acts on the commands. If not,
@@ -52,28 +55,8 @@ def handle_command(command, channel):
         call = requests.get('http://catfacts-api.appspot.com/api/facts?number=1')
         fact = json.loads(call.text)
         response = fact['facts'][0]
-
-    # new commands
-    if command.startswith("new"):
-        newCommand = command.split("new")[1].strip()
-        commandList = newCommand.split(" ")
-        
-        # insert event
-        if newCommand.startswith("event") and len(commandList) >= 4 and commandList[1].isdigit():
-            # print commandList[1], commandList[2], commandList[3]
-            if len(commandList) > 4:
-                for index in range(4, len(commandList)):
-                    commandList[3] += " " + commandList[index]
-            cur.execute("INSERT INTO Events VALUES(?, ?, ?)", (commandList[1], commandList[2], commandList[3]))
-            con.commit()
-            response = "Event added"
-
-    # delete event
-    if command.startswith("delete event"):
-        deleteCommand = command.split("delete event")[1].strip()
-        cur.execute("DELETE FROM Events WHERE Id == ?", deleteCommand)
-        response = "Event deleted"
     
+    #events
     if command.startswith("event"):
         eventCommand = command.split("event")
         commandList = eventCommand[1].split(" ")
@@ -102,22 +85,84 @@ def handle_command(command, channel):
             for row in event:    
                 response += "\n%2s %-10s %s" % row
 
-    # list events
-    if command.startswith("list"):
-        listCommand = command.split("list")[1].strip()
-        if listCommand.startswith("events"):
-            cur.execute("SELECT * FROM Events")
-            event_names = [en[0] for en in cur.description]
-            event = cur.fetchall()
-            response = "%s %-10s %s" % (event_names[0], event_names[1], event_names[2])
+    response = "`"  + response + "`"
 
-            for row in event:    
-                response += "\n%2s %-10s %s" % row
-
+    #quest
+    if command.startswith("hquest"):
+        command = command.split("hquest")[1].strip()
+        print command
+        response = husciiQuest(command, channel, user)
+    
     # return the response
+    print user
     slack_client.api_call("chat.postMessage", channel=channel,
                           text=response, as_user=True)
 
+"""
+   __ __             _ _ ____               __ 
+  / // /_ _____ ____(_|_) __ \__ _____ ___ / /_
+ / _  / // (_-</ __/ / / /_/ / // / -_|_-</ __/
+/_//_/\_,_/___/\__/_/_/\___\_\_,_/\__/___/\__/ 
+
+"""
+
+def husciiQuest(command, channel, user):
+    usercon = sqlite3.connect("hquest/" + user + ".db")
+    usercur = usercon.cursor()
+    response = "hquest"
+    if command.startswith("help"):
+        response = "add the hquest commands"
+
+    if command.startswith("new profile"):
+
+        try:
+            usercur.execute("CREATE TABLE Equipment(Head TEXT, Hands TEXT, Chest TEXT, Legs TEXT, Feet TEXT, Weapon TEXT, Offhand TEXT)")
+            usercur.execute("INSERT INTO Equipment VALUES(?, ?, ?, ?, ?, ?, ?)", ("None", "None", "None", "None", "None", "None", "None"))
+            usercur.execute("CREATE TABLE Inventory(ItemID TEXT, Item TEXT)")
+            response = "New profile made"
+        except sqlite3.Error:
+            response = "There was an error"
+
+    response = "`" + response + "`"
+
+    if command.startswith("equips"):
+        usercur.execute("SELECT * FROM Equipment")
+        equipSlots = [es[0] for es in usercur.description]
+        equips = usercur.fetchall()
+
+        response = "      _______________________________________________________ \n"
+        response += "     /\                                                      \ \n"
+        response += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
+        response += "     \/''''''''''''''''''''''''''''''''''''''''''''''''''''''/ \n"
+        response += "      |%-53s|\n" % ""
+        for i in range(len(equipSlots)):
+            line = " " + equipSlots[i] + ": " + equips[0][i]
+            response += "      |%-53s|\n" % line
+        response += "      |%-53s|\n" % ""
+        response += "     /\\''''''''''''''''''''''''''''''''''''''''''''''''''''''\ \n"
+        response += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
+        response += "     \/______________________________________________________/"
+        response = "```" + response + "```"
+
+    if command.startswith("inventory"):
+        usercur.execute("SELECT * FROM Inventory")
+        items = usercur.fetchall()
+
+        response = "      _______________________________________________________ \n"
+        response += "     /\                                                      \ \n"
+        response += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
+        response += "     \/''''''''''''''''''''''''''''''''''''''''''''''''''''''/ \n"
+        response += "      |%-53s|\n" % ""
+        response += "      |%-53s|\n" % " Items"
+        for row in items:
+            response += "      | %-52s|\n" % row[1]
+        response += "      |%-53s|\n" % ""
+        response += "     /\\''''''''''''''''''''''''''''''''''''''''''''''''''''''\ \n"
+        response += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
+        response += "     \/______________________________________________________/"
+        response = "```" + response + "```"
+
+    return response
 
 def parse_slack_output(slack_rtm_output):
     """
@@ -126,18 +171,23 @@ def parse_slack_output(slack_rtm_output):
         directed at the Bot, based on its ID.
     """
     output_list = slack_rtm_output
+    # if(len(output_list) > 0):
+    #     print output_list
+
     if output_list and len(output_list) > 0:
         for output in output_list:
             if output and 'text' in output and AT_BOT in output['text']:
                 # return text after the @ mention, whitespace removed
                 return output['text'].split(AT_BOT)[1].strip(), \
-                       output['channel']
-    return None, None
+                       output['channel'], \
+                       output['user']
+    return None, None, None
 
 def makeTable():
     # cur.execute("DROP TABLE IF EXISTS Events")
     try:
         cur.execute("CREATE TABLE Events(Id TEXT, TheDate TEXT, Name TEXT)")
+        # cur.execute("CREATE TABLE HusciiQuest(UserId TEXT, Username TEXT, TheDate TEXT, Name TEXT)")
     except sqlite3.Error:
         pass
 
@@ -147,9 +197,9 @@ if __name__ == "__main__":
     if slack_client.rtm_connect():
         print("StarterBot connected and running!")
         while True:
-            command, channel = parse_slack_output(slack_client.rtm_read())
+            command, channel, user = parse_slack_output(slack_client.rtm_read())
             if command and channel:
-                handle_command(command, channel)
+                handle_command(command, channel, user)
             time.sleep(READ_WEBSOCKET_DELAY)
     else:
         print("Connection failed. Invalid Slack token or bot ID?")
