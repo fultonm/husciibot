@@ -114,14 +114,22 @@ def husciiQuest(command, channel, user):
         response = "add the hquest commands"
 
     if command.startswith("new profile"):
+        api_call = slack_client.api_call("users.list")
+        if api_call.get('ok'):
+            # retrieve all users so we can find our bot
+            users = api_call.get('members')
+            for user in users:
+                if 'id' in user and user.get('id') == id:
+                    username = user.get('name')
 
         try:
             usercur.execute("CREATE TABLE Equipment(Head TEXT, Hands TEXT, Chest TEXT, Legs TEXT, Feet TEXT, Weapon TEXT, Offhand TEXT)")
             usercur.execute("INSERT INTO Equipment VALUES(?, ?, ?, ?, ?, ?, ?)", ("None", "None", "None", "None", "None", "None", "None"))
             usercur.execute("CREATE TABLE Inventory(ItemID TEXT, Item TEXT)")
+            usercur.execute("CREATE TABLE Profile(UserID TEXT, Username TEXT, Experience TEXT, Gold TEXT)", (user, Username, "0/10", "0"))
             response = "New profile made"
         except sqlite3.Error:
-            response = "There was an error"
+            response = "You have a profile already or there was an error"
 
     response = "`" + response + "`"
 
