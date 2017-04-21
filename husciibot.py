@@ -111,25 +111,62 @@ def husciiQuest(command, channel, user):
     usercur = usercon.cursor()
     response = "hquest"
     if command.startswith("help"):
-        response = "add the hquest commands"
+        response = "add the hquest commands"        
 
     if command.startswith("new profile"):
         api_call = slack_client.api_call("users.list")
         if api_call.get('ok'):
+            print "api call gucci fam"
             # retrieve all users so we can find our bot
             users = api_call.get('members')
-            for user in users:
-                if 'id' in user and user.get('id') == id:
-                    username = user.get('name')
+            for u in users:
+                if 'id' in u and u.get('id') == user.strip():
+                    username = u.get('name')
+                    print "Username aquired"
 
         try:
             usercur.execute("CREATE TABLE Equipment(Head TEXT, Hands TEXT, Chest TEXT, Legs TEXT, Feet TEXT, Weapon TEXT, Offhand TEXT)")
             usercur.execute("INSERT INTO Equipment VALUES(?, ?, ?, ?, ?, ?, ?)", ("None", "None", "None", "None", "None", "None", "None"))
-            usercur.execute("CREATE TABLE Inventory(ItemID TEXT, Item TEXT)")
-            usercur.execute("CREATE TABLE Profile(UserID TEXT, Username TEXT, Experience TEXT, Gold TEXT)", (user, Username, "0/10", "0"))
+            print "equips made"
+
+            usercur.execute("CREATE TABLE Inventory(Item TEXT, Slot TEXT, Value INT, Rating INT, Equipped BOOLEAN)")
+            usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?)", ("Wooden Sword", "Weapon", 1, 1, 0))
+            usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?)", ("Wooden Shield", "Offhand", 1, 1, 0))
+            print "inventory made"
+
+            usercur.execute("CREATE TABLE Profile(UserID TEXT, Username TEXT, ExpCur INT, ExpMax INT, Gold INT, Cr INT)")
+            usercur.execute("INSERT INTO Profile VALUES(?, ?, ?, ?, ?, ?)", (user, username, 0, 10, 0, 0))
+            print "profile made"
+
+            usercon.commit()
+
             response = "New profile made"
         except sqlite3.Error:
             response = "You have a profile already or there was an error"
+
+    if command.startswith("item"):
+        command = command.split("item")[1].strip()
+        if command.startswith("equip"):
+            command = command.split("equip")[1].strip()
+            usercur.execute("SELECT * FROM Inventory WHERE Item = ?", [command])
+            item = usercur.fetchall()
+            if item[0][4]:
+                response = "Item is already equipped"
+            else:
+                usercur.execute("SELECT * FROM Profile")
+                profile = usercur.fetchall()
+                print item, command, item[0], item[0][1], item[0][0]
+                exe = "UPDATE Equipment SET " + item[0][1] + " = '" + item[0][0] + "'"
+                usercur.execute(exe)
+                # usercur.execute("UPDATE Equipment SET ? = ?", ((item[0][1],) , (item[0][0],)))
+                print profile
+                cr = item[0][3] + profile[0][5]
+                print type(cr)
+                usercur.execute("UPDATE Profile SET Cr = ?", (cr,))
+                usercur.execute("UPDATE Inventory SET Equipped = 1 WHERE Item = ?", [command])
+                response = "You equipped " + command
+
+            usercon.commit()
 
     response = "`" + response + "`"
 
@@ -137,40 +174,52 @@ def husciiQuest(command, channel, user):
         usercur.execute("SELECT * FROM Equipment")
         equipSlots = [es[0] for es in usercur.description]
         equips = usercur.fetchall()
-
-        response = "      _______________________________________________________ \n"
-        response += "     /\                                                      \ \n"
-        response += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
-        response += "     \/''''''''''''''''''''''''''''''''''''''''''''''''''''''/ \n"
-        response += "      |%-53s|\n" % ""
+        response = ""
+    
         for i in range(len(equipSlots)):
             line = " " + equipSlots[i] + ": " + equips[0][i]
             response += "      |%-53s|\n" % line
-        response += "      |%-53s|\n" % ""
-        response += "     /\\''''''''''''''''''''''''''''''''''''''''''''''''''''''\ \n"
-        response += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
-        response += "     \/______________________________________________________/"
-        response = "```" + response + "```"
+
+        response = scrollify(response)
 
     if command.startswith("inventory"):
         usercur.execute("SELECT * FROM Inventory")
         items = usercur.fetchall()
+        response = ""
 
-        response = "      _______________________________________________________ \n"
-        response += "     /\                                                      \ \n"
-        response += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
-        response += "     \/''''''''''''''''''''''''''''''''''''''''''''''''''''''/ \n"
-        response += "      |%-53s|\n" % ""
-        response += "      |%-53s|\n" % " Items"
+        response += "      |%-53s|\n" % "     Items"
+        i = 1;
         for row in items:
-            response += "      | %-52s|\n" % row[1]
-        response += "      |%-53s|\n" % ""
-        response += "     /\\''''''''''''''''''''''''''''''''''''''''''''''''''''''\ \n"
-        response += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
-        response += "     \/______________________________________________________/"
-        response = "```" + response + "```"
+            if row[4]:
+                e = "[x]"
+            else:
+                e = "[ ]"
+            response += "      | %3s %-43s %3s |\n" % (i, row[0], e)
+            i += 1
+        
+        response = scrollify(response)
 
     return response
+
+def scrollify(response):
+        scrollTop =  "      _______________________________________________________ \n"
+        scrollTop += "     /\                                                      \ \n"
+        scrollTop += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
+        scrollTop += "     \/''''''''''''''''''''''''''''''''''''''''''''''''''''''/ \n"
+        scrollTop += "      |%-53s|\n" % ""
+
+        scrollBot  = "      |%-53s|\n" % ""
+        scrollBot += "     /\\''''''''''''''''''''''''''''''''''''''''''''''''''''''\ \n"
+        scrollBot += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
+        scrollBot += "     \/______________________________________________________/"
+
+        response = "```" + scrollTop + response + scrollBot + "```"
+        return response    
+
+
+"""
+,.*'`/~=-=~\`'*.,
+"""
 
 def parse_slack_output(slack_rtm_output):
     """
