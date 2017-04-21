@@ -149,24 +149,40 @@ def husciiQuest(command, channel, user):
         if command.startswith("equip"):
             command = command.split("equip")[1].strip()
             usercur.execute("SELECT * FROM Inventory WHERE Item = ?", [command])
-            item = usercur.fetchall()
-            if item[0][4]:
+            item = usercur.fetchall()[0]
+            if item[4]:
                 response = "Item is already equipped"
             else:
                 usercur.execute("SELECT * FROM Profile")
-                profile = usercur.fetchall()
-                print item, command, item[0], item[0][1], item[0][0]
-                exe = "UPDATE Equipment SET " + item[0][1] + " = '" + item[0][0] + "'"
-                usercur.execute(exe)
+                profile = usercur.fetchall()[0]
+                exe = "UPDATE Equipment SET " + item[1] + " = ?"
+                usercur.execute(exe, (item[0],))
                 # usercur.execute("UPDATE Equipment SET ? = ?", ((item[0][1],) , (item[0][0],)))
                 print profile
-                cr = item[0][3] + profile[0][5]
-                print type(cr)
+                cr = item[3] + profile[5]
                 usercur.execute("UPDATE Profile SET Cr = ?", (cr,))
                 usercur.execute("UPDATE Inventory SET Equipped = 1 WHERE Item = ?", [command])
                 response = "You equipped " + command
 
-            usercon.commit()
+        if command.startswith("unequip"):
+            command = command.split("unequip")[1].strip()
+            usercur.execute("SELECT * FROM Inventory WHERE Item = ?", [command])
+            item = usercur.fetchall()[0]
+            if item[4]:
+                usercur.execute("SELECT * FROM Profile")
+                profile = usercur.fetchall()[0]
+                exe = "UPDATE Equipment SET " + item[1] + " = 'None'"
+                usercur.execute(exe)
+                cr = profile[5] - item[3]
+                usercur.execute("UPDATE Profile SET Cr = ?", (cr,))
+                usercur.execute("UPDATE Inventory SET Equipped = 0 WHERE Item = ?", [command])
+                response = "You unequipped " + command
+
+            else:
+                response = "Item is not equipped"
+
+
+        usercon.commit()
 
     response = "`" + response + "`"
 
@@ -197,6 +213,17 @@ def husciiQuest(command, channel, user):
             response += "      | %3s %-43s %3s |\n" % (i, row[0], e)
             i += 1
         
+        response = scrollify(response)
+
+    if command.startswith("profile"):
+        usercur.execute("SELECT * FROM Profile")
+        profile = usercur.fetchall()[0]
+        response = ""
+
+        response += "      | %-52s|\n" % profile[1]
+        response += "      | %-52s|\n" % ("Exp: " + str(profile[2]) + "/" + str(profile[3]))
+        response += "      | %-52s|\n" % ("Combat Rating: " + str(profile[5]))
+
         response = scrollify(response)
 
     return response
