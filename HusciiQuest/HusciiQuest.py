@@ -8,24 +8,45 @@
 
 import sqlite3
 from Huscii import Huscii
+from HQShop import HQShop
 from slackclient import SlackClient
 
 keys = Huscii()
 BOT_ID = keys.id
 slack_client = SlackClient(keys.key)
 
-class HusciiQuest:
+# HQShop = HQShop()   
+
+class HusciiQuest():
+
+    """
+    Add the scroll effect to the player information responses and turn into
+    multiline block comment
+    """
+
+    @staticmethod
+    def scrollify(response):
+            scrollTop =  "      _______________________________________________________ \n"
+            scrollTop += "     /\                                                      \ \n"
+            scrollTop += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
+            scrollTop += "     \/''''''''''''''''''''''''''''''''''''''''''''''''''''''/ \n"
+            scrollTop += "      |%-53s|\n" % ""
+
+            scrollBot  = "      |%-53s|\n" % ""
+            scrollBot += "     /\\''''''''''''''''''''''''''''''''''''''''''''''''''''''\ \n"
+            scrollBot += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
+            scrollBot += "     \/______________________________________________________/"
+
+            response = "```" + scrollTop + response + scrollBot + "```"
+            return response
+
 
     @staticmethod
     def husciiQuest(command, channel, user):
         # connect to user database
         usercon = sqlite3.connect("hquest/" + user + ".db")
         usercur = usercon.cursor()
-        response = "hquest"
-
-        # add help commands
-        if command.startswith("help"):
-            response = "add the hquest commands"        
+        response = "Something went wrong with [hquest] type help for commands"
 
         # create a new profile
         if command.startswith("new profile"):
@@ -42,8 +63,16 @@ class HusciiQuest:
 
             try:
                 # create equip table and fill with none
-                usercur.execute("CREATE TABLE Equipment(Head TEXT, Hands TEXT, Chest TEXT, Legs TEXT, Feet TEXT, Weapon TEXT, Offhand TEXT)")
-                usercur.execute("INSERT INTO Equipment VALUES(?, ?, ?, ?, ?, ?, ?)", ("None", "None", "None", "None", "None", "None", "None"))
+                # usercur.execute("CREATE TABLE Equipment(Head TEXT, Hands TEXT, Chest TEXT, Legs TEXT, Feet TEXT, Weapon TEXT, Offhand TEXT)")
+                # usercur.execute("INSERT INTO Equipment VALUES(?, ?, ?, ?, ?, ?, ?)", ("None", "None", "None", "None", "None", "None", "None"))
+                usercur.execute("CREATE TABLE Equipment(Slot TEXT, Item TEXT)")
+                usercur.execute("INSERT INTO Equipment VALUES(?, ?)", ("Head", "None"))
+                usercur.execute("INSERT INTO Equipment VALUES(?, ?)", ("Hands", "None"))
+                usercur.execute("INSERT INTO Equipment VALUES(?, ?)", ("Chest", "None"))
+                usercur.execute("INSERT INTO Equipment VALUES(?, ?)", ("Legs", "None"))
+                usercur.execute("INSERT INTO Equipment VALUES(?, ?)", ("Feet", "None"))
+                usercur.execute("INSERT INTO Equipment VALUES(?, ?)", ("Weapon", "None"))
+                usercur.execute("INSERT INTO Equipment VALUES(?, ?)", ("Offhand", "None"))
                 print("equips made")
 
                 # create inventory table
@@ -56,7 +85,7 @@ class HusciiQuest:
                 # create profile table
                 usercur.execute("CREATE TABLE Profile(UserID TEXT, Username TEXT, ExpCur INT, ExpMax INT, Gold INT, Cr INT)")
                 # insert default values
-                usercur.execute("INSERT INTO Profile VALUES(?, ?, ?, ?, ?, ?)", (user, username, 0, 10, 0, 0))
+                usercur.execute("INSERT INTO Profile VALUES(?, ?, ?, ?, ?, ?)", (user, username, 0, 10, 50, 0))
                 print("profile made")
 
                 # commit changes
@@ -77,44 +106,54 @@ class HusciiQuest:
                 command = command.split("equip")[1].strip()
                 # fetch table row for the item
                 usercur.execute("SELECT * FROM Inventory WHERE Item = ?", [command])
-                item = usercur.fetchall()[0]
-                if item[4]:
-                    response = "Item is already equipped"
+                item = usercur.fetchall()
+                if(len(item) != 0):
+                    item = item[0]
+                    if item[4] and item[1] != "Other":
+                        response = "Item is already equipped"
+                    else:
+                        # fetch profile
+                        usercur.execute("SELECT * FROM Profile")
+                        profile = usercur.fetchall()[0]
+                        # update the "equipped" value in table
+                        # exe = "UPDATE Equipment SET " + item[1] + " = ?"
+                        # usercur.execute(exe, (item[0],))
+                        usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", (item[0], item[1]))
+                        # usercur.execute("UPDATE Equipment SET ? = ?", ((item[0][1],) , (item[0][0],)))
+                        print(profile)
+                        # update combat rating
+                        cr = item[3] + profile[5]
+                        usercur.execute("UPDATE Profile SET Cr = ?", (cr,))
+                        usercur.execute("UPDATE Inventory SET Equipped = 1 WHERE Item = ?", [command])
+                        response = "You equipped " + command
                 else:
-                    # fetch profile
-                    usercur.execute("SELECT * FROM Profile")
-                    profile = usercur.fetchall()[0]
-                    # update the "equipped" value in table
-                    exe = "UPDATE Equipment SET " + item[1] + " = ?"
-                    usercur.execute(exe, (item[0],))
-                    # usercur.execute("UPDATE Equipment SET ? = ?", ((item[0][1],) , (item[0][0],)))
-                    print(profile)
-                    # update combat rating
-                    cr = item[3] + profile[5]
-                    usercur.execute("UPDATE Profile SET Cr = ?", (cr,))
-                    usercur.execute("UPDATE Inventory SET Equipped = 1 WHERE Item = ?", [command])
-                    response = "You equipped " + command
+                    response = "Cannot find item"
 
             # unequip item
             if command.startswith("unequip"):
                 command = command.split("unequip")[1].strip()
                 # fetch table row for the item
                 usercur.execute("SELECT * FROM Inventory WHERE Item = ?", [command])
-                item = usercur.fetchall()[0]
-                if item[4]:
-                    # fetch profile
-                    usercur.execute("SELECT * FROM Profile")
-                    profile = usercur.fetchall()[0]
-                    # update the "equipped" value in table
-                    exe = "UPDATE Equipment SET " + item[1] + " = 'None'"
-                    usercur.execute(exe)
-                    # update combat rating
-                    cr = profile[5] - item[3]
-                    usercur.execute("UPDATE Profile SET Cr = ?", (cr,))
-                    usercur.execute("UPDATE Inventory SET Equipped = 0 WHERE Item = ?", [command])
-                    response = "You unequipped " + command
+                item = usercur.fetchall()
+                if(len(item) != 0):
+                    item = item[0]
+                    if item[4]:
+                        # fetch profile
+                        usercur.execute("SELECT * FROM Profile")
+                        profile = usercur.fetchall()[0]
+                        # update the "equipped" value in table
+                        # exe = "UPDATE Equipment SET " + item[1] + " = 'None'"
+                        # usercur.execute(exe)
+                        usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", ("None", item[1]))
+                        # update combat rating
+                        cr = profile[5] - item[3]
+                        usercur.execute("UPDATE Profile SET Cr = ?", (cr,))
+                        usercur.execute("UPDATE Inventory SET Equipped = 0 WHERE Item = ?", [command])
+                        response = "You unequipped " + command
+                    else:
+                        response = "Item is not equipped"
                 else:
-                    response = "Item is not equipped"
+                    response = "Cannot find item"
 
             # commit changes
             usercon.commit()
@@ -122,26 +161,39 @@ class HusciiQuest:
         # turn into code line response
         response = "`" + response + "`"
 
+        # add help commands
+        if command.startswith("help"):
+            response = "HELP COMMANDS\n"
+            response += "profile .. prints out users profile\n"
+            response += "inventory .. prints out inventory\n"
+            response += "equips .. prints out all equipment\n"
+            response += "new profile .. creates new profile\n"
+            response += "item equip [item] .. equips item\n"
+            response += "item unequip [item] .. unequips item\n"
+
+            response = "```" + response + "```"
+
         # print equipment
         if command.startswith("equips"):
             # select all equipment coloumns
             usercur.execute("SELECT * FROM Equipment")
-            equipSlots = [es[0] for es in usercur.print]
             equips = usercur.fetchall()
             response = ""
             
             # Print out each equip
-            for i in range(len(equipSlots)):
-                line = " " + equipSlots[i] + ": " + equips[0][i]
+            for i in range(len(equips)):
+                line = " " + equips[i][0] + ": " + equips[i][1]
                 response += "      |%-53s|\n" % line
 
-            response = scrollify(response)
+            response = HusciiQuest.scrollify(response)
 
         # print inventory
         if command.startswith("inventory"):
             # select all items in inventory
             usercur.execute("SELECT * FROM Inventory")
             items = usercur.fetchall()
+            usercur.execute("SELECT * FROM Profile")
+            gold = usercur.fetchall()[0]
             response = ""
 
             # print out item label
@@ -158,8 +210,11 @@ class HusciiQuest:
                     e = "[ ]"
                 response += "      | %3s %-43s %3s |\n" % (i, row[0], e)
                 i += 1
+
+            response += "      |%-53s|\n" % ""
+            response += "      |     %-48s|\n" % ("Gold: " + str(gold[4]))
             
-            response = scrollify(response)
+            response = HusciiQuest.scrollify(response)
 
         # print out profile
         if command.startswith("profile"):
@@ -173,29 +228,19 @@ class HusciiQuest:
             response += "      | %-52s|\n" % ("Exp: " + str(profile[2]) + "/" + str(profile[3]))
             response += "      | %-52s|\n" % ("Combat Rating: " + str(profile[5]))
 
-            response = scrollify(response)
+            response = HusciiQuest.scrollify(response)
+
+        # handle commands with shop
+        if command.startswith("shop"):
+            command = command.split("shop")[1].strip()
+            # hqs.start()
+            response = HQShop.shop(command, channel, user, usercon, usercur)
+            if  response.startswith("`"):
+                pass
+            else:
+                HusciiQuest.scrollify(response)
 
         return response
-
-    """
-        Add the scroll effect to the player information responses and turn into
-        multiline block comment
-    """
-    def scrollify(response):
-            scrollTop =  "      _______________________________________________________ \n"
-            scrollTop += "     /\                                                      \ \n"
-            scrollTop += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
-            scrollTop += "     \/''''''''''''''''''''''''''''''''''''''''''''''''''''''/ \n"
-            scrollTop += "      |%-53s|\n" % ""
-
-            scrollBot  = "      |%-53s|\n" % ""
-            scrollBot += "     /\\''''''''''''''''''''''''''''''''''''''''''''''''''''''\ \n"
-            scrollBot += "(O)===)><><><><><><><><><><><><><><><><><><><><><><><><><><><)==(O) \n"
-            scrollBot += "     \/______________________________________________________/"
-
-            response = "```" + scrollTop + response + scrollBot + "```"
-            return response    
-
 
     """
          End HusciiQuest
