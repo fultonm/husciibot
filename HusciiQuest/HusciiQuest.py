@@ -7,6 +7,9 @@
 """
 
 import sqlite3
+import json
+import requests
+import random
 from Huscii import Huscii
 from HQShop import HQShop
 from slackclient import SlackClient
@@ -23,6 +26,62 @@ class HusciiQuest():
     Add the scroll effect to the player information responses and turn into
     multiline block comment
     """
+    def genItem():
+        # with open('randgen/items.json') as data_file:    
+        #     data = json.load(data_file)
+        #     if(bool(random.getrandbits(1))):
+        #         item = data['weapon']
+        #     else:
+        #         item = data['armour']
+        #     weapon = item[random.randrange(0, len(item) - 1)]
+        #     prefix = data['prefix'][random.randrange(0, len(data['prefix']) - 1)]
+        #     suffix = data['suffix'][random.randrange(0, len(data['suffix']) - 1)]
+        #     print(prefix + " " + weapon + " " + suffix)
+
+        level = 25
+        prefix = ''
+        suffix = ''
+        with open('randgen/items2.json') as data_file:    
+            data = json.load(data_file)
+            if(bool(random.getrandbits(1))):
+                item = data['weapon']
+            else:
+                item = data['armour']
+            item = random.choice(item)
+            slot = list(item)[0]
+            item = item[slot]
+            item = random.choice(item)
+            cr = item[list(item)[0]]
+            randnum = random.uniform(-0.5, 1.0)
+            cr = (int)(level + (cr * (level/100) * randnum)) + 3
+            if slot == 'twohand':
+                cr = (int)((level * 2) + (2 * (cr * (level/100) * randnum))) + 6
+            else:
+                cr = (int)(level + (cr * (level/100) * randnum)) + 3
+            itemlevel = (int)(level + round(randnum * 4))
+            item = list(item)[0]
+            
+            chance = random.randrange(1, 100)
+            # print(chance)
+            if chance >= (100 - level/2):
+                prefix = random.choice(data['prefix']) + ' '
+                cr += (int)(random.uniform(0.25, 0.5) * level)
+                itemlevel += 1
+            chance = random.randrange(1, 100)
+            # print(chance)
+            if chance >= (100 - level/2):
+                suffix = ' ' + random.choice(data['suffix'])
+                cr += (int)(random.uniform(0.25, 0.5) * level)
+                itemlevel += 1
+            if itemlevel > 100:
+                itemlevel = 100
+            elif itemlevel < 1:
+                itemlevel = 1
+            value = (int)(itemlevel * 10 + itemlevel * 2.5 * randnum)
+            print(value)
+            item = prefix + item + suffix
+            return 'You found a ' + item, item, slot, itemlevel, cr, value
+
 
     @staticmethod
     def scrollify(response):
@@ -76,16 +135,16 @@ class HusciiQuest():
                 print("equips made")
 
                 # create inventory table
-                usercur.execute("CREATE TABLE Inventory(Item TEXT, Slot TEXT, Value INT, Rating INT, Equipped BOOLEAN)")
+                usercur.execute("CREATE TABLE Inventory(Item TEXT, Slot TEXT, Value INT, Rating INT, Equipped BOOLEAN, ItemLevel INT)")
                 # add wooden sword and shield
-                usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?)", ("Wooden Sword", "Weapon", 1, 1, 0))
-                usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?)", ("Wooden Shield", "Offhand", 1, 1, 0))
+                usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?, ?)", ("Wooden Sword", "Weapon", 1, 1, 0, 1))
+                usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?, ?)", ("Wooden Shield", "Offhand", 1, 1, 0, 1))
                 print("inventory made")
 
                 # create profile table
-                usercur.execute("CREATE TABLE Profile(UserID TEXT, Username TEXT, ExpCur INT, ExpMax INT, Gold INT, Cr INT)")
+                usercur.execute("CREATE TABLE Profile(UserID TEXT, Username TEXT, ExpCur INT, ExpMax INT, Level INT, Gold INT, Cr INT)")
                 # insert default values
-                usercur.execute("INSERT INTO Profile VALUES(?, ?, ?, ?, ?, ?)", (user, username, 0, 10, 50, 0))
+                usercur.execute("INSERT INTO Profile VALUES(?, ?, ?, ?, ?, ?)", (user, username, 0, 10, 1, 50, 0))
                 print("profile made")
 
                 # commit changes
@@ -115,11 +174,11 @@ class HusciiQuest():
                         # fetch profile
                         usercur.execute("SELECT * FROM Profile")
                         profile = usercur.fetchall()[0]
-                        # update the "equipped" value in table
-                        # exe = "UPDATE Equipment SET " + item[1] + " = ?"
-                        # usercur.execute(exe, (item[0],))
-                        usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", (item[0], item[1]))
-                        # usercur.execute("UPDATE Equipment SET ? = ?", ((item[0][1],) , (item[0][0],)))
+                        if item[1] == 'Twohand':
+                            usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", (item[0], 'Weapon'))
+                            usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", (item[0], 'Offhand'))
+                        else:
+                            usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", (item[0], item[1]))
                         print(profile)
                         # update combat rating
                         cr = item[3] + profile[5]
@@ -142,9 +201,11 @@ class HusciiQuest():
                         usercur.execute("SELECT * FROM Profile")
                         profile = usercur.fetchall()[0]
                         # update the "equipped" value in table
-                        # exe = "UPDATE Equipment SET " + item[1] + " = 'None'"
-                        # usercur.execute(exe)
-                        usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", ("None", item[1]))
+                        if item[1] == 'Twohand':
+                            usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", ("None", 'Weapon'))
+                            usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", ("None", 'Offhand'))
+                        else:
+                            usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", ("None", item[1]))
                         # update combat rating
                         cr = profile[5] - item[3]
                         usercur.execute("UPDATE Profile SET Cr = ?", (cr,))
@@ -197,7 +258,7 @@ class HusciiQuest():
             response = ""
 
             # print out item label
-            response += "      |%-53s|\n" % "     Items"
+            response += "      |%-42s %s     |\n" % ("     Items", "Value")
             i = 1;
 
             # print out every item in a row
@@ -208,8 +269,9 @@ class HusciiQuest():
                     e = "[x]"
                 else:
                     e = "[ ]"
-                response += "      | %3s %-43s %3s |\n" % (i, row[0], e)
+                response += "      | %3s %-38s %4d %3s |\n" % (i, row[0], row[2], e)
                 i += 1
+                response += "      |       Level: %-3s CR: %-3s Slot: %-21s|\n" % (row[5], row[3], row[1])
 
             response += "      |%-53s|\n" % ""
             response += "      |     %-48s|\n" % ("Gold: " + str(gold[4]))
@@ -235,13 +297,45 @@ class HusciiQuest():
             command = command.split("shop")[1].strip()
             # hqs.start()
             response = HQShop.shop(command, channel, user, usercon, usercur)
-            if  response.startswith("`"):
-                pass
+
+            if not response.startswith("`"):
+                response = HusciiQuest.scrollify(response)
+
+        if command.startswith("fight"):
+            print('''
+         xXXX  XXXXXXXX
+         XX::XX........Xx
+          XX""""OO..OOXX
+          XX""""""""....XX
+        xX..""""""""""""XX
+       XX....""xxMM^^MM..
+      xX..""""""""xxMM
+      XX""""""""mm""mm
+      xx""""xxxx..""..XX
+      XXxx""""""xx""""XX
+      XXxxxx""""xx""XXXX
+``**--==XXMMMM""..MMMM..
+            ''')
+            response = "You encountered a rat."
+            response += "\nYou killed a rat.\n"
+            drop = HusciiQuest.genItem()
+            response += drop[0]
+            if drop[2] == 'onehand':
+                slot = 'Weapon'
             else:
-                HusciiQuest.scrollify(response)
+                slot = drop[2].title()
+            usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?, ?)", (drop[1], slot, drop[5], drop[4], 0, drop[3]))
+            usercon.commit()
+
+        if command.startswith("drop"):
+            print('test gen')
+            gen = HusciiQuest.genItem()
+            response = gen[0]
+            response = '`' + response + '`'
+            item = (gen[1], gen[2], gen[4])
+            print(response, item)
 
         return response
-
     """
          End HusciiQuest
         ,.*'`/~=-=~\`'*.,
