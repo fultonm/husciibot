@@ -31,9 +31,10 @@ class HQShop():
         if command.startswith("list"):
             cur.execute("SELECT * FROM Shop");
             shop = cur.fetchall();
+
+            response += "      | %-32s %8s %4s %4s |\n" % ("Item", "Slot", "CR", "GP")
             for i in range(0, len(shop)):
-                response = ""
-                response += "      |%-37s %8s %4d %4d|\n" % (shop[i][0], shop[i][1], shop[i][2], shop[i][3])
+                response += "      | %-32s %8s %4d %4d |\n" % (shop[i][0], shop[i][1], shop[i][2], shop[i][3])
 
         if command.startswith("buy"):
             command = command.split("buy")[1].strip()

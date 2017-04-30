@@ -12,6 +12,7 @@ import requests
 import random
 from Huscii import Huscii
 from HQShop import HQShop
+from HQFight import HQFight
 from slackclient import SlackClient
 
 keys = Huscii()
@@ -26,63 +27,6 @@ class HusciiQuest():
     Add the scroll effect to the player information responses and turn into
     multiline block comment
     """
-    def genItem():
-        # with open('randgen/items.json') as data_file:    
-        #     data = json.load(data_file)
-        #     if(bool(random.getrandbits(1))):
-        #         item = data['weapon']
-        #     else:
-        #         item = data['armour']
-        #     weapon = item[random.randrange(0, len(item) - 1)]
-        #     prefix = data['prefix'][random.randrange(0, len(data['prefix']) - 1)]
-        #     suffix = data['suffix'][random.randrange(0, len(data['suffix']) - 1)]
-        #     print(prefix + " " + weapon + " " + suffix)
-
-        level = 25
-        prefix = ''
-        suffix = ''
-        with open('randgen/items2.json') as data_file:    
-            data = json.load(data_file)
-            if(bool(random.getrandbits(1))):
-                item = data['weapon']
-            else:
-                item = data['armour']
-            item = random.choice(item)
-            slot = list(item)[0]
-            item = item[slot]
-            item = random.choice(item)
-            cr = item[list(item)[0]]
-            randnum = random.uniform(-0.5, 1.0)
-            cr = (int)(level + (cr * (level/100) * randnum)) + 3
-            if slot == 'twohand':
-                cr = (int)((level * 2) + (2 * (cr * (level/100) * randnum))) + 6
-            else:
-                cr = (int)(level + (cr * (level/100) * randnum)) + 3
-            itemlevel = (int)(level + round(randnum * 4))
-            item = list(item)[0]
-            
-            chance = random.randrange(1, 100)
-            # print(chance)
-            if chance >= (100 - level/2):
-                prefix = random.choice(data['prefix']) + ' '
-                cr += (int)(random.uniform(0.25, 0.5) * level)
-                itemlevel += 1
-            chance = random.randrange(1, 100)
-            # print(chance)
-            if chance >= (100 - level/2):
-                suffix = ' ' + random.choice(data['suffix'])
-                cr += (int)(random.uniform(0.25, 0.5) * level)
-                itemlevel += 1
-            if itemlevel > 100:
-                itemlevel = 100
-            elif itemlevel < 1:
-                itemlevel = 1
-            value = (int)(itemlevel * 10 + itemlevel * 2.5 * randnum)
-            print(value)
-            item = prefix + item + suffix
-            return 'You found a ' + item, item, slot, itemlevel, cr, value
-
-
     @staticmethod
     def scrollify(response):
             scrollTop =  "      _______________________________________________________ \n"
@@ -142,9 +86,9 @@ class HusciiQuest():
                 print("inventory made")
 
                 # create profile table
-                usercur.execute("CREATE TABLE Profile(UserID TEXT, Username TEXT, ExpCur INT, ExpMax INT, Level INT, Gold INT, Cr INT)")
+                usercur.execute("CREATE TABLE Profile(UserID TEXT, Username TEXT, ExpCur INT, ExpMax INT, Gold INT, Cr INT, Level INT)")
                 # insert default values
-                usercur.execute("INSERT INTO Profile VALUES(?, ?, ?, ?, ?, ?)", (user, username, 0, 10, 1, 50, 0))
+                usercur.execute("INSERT INTO Profile VALUES(?, ?, ?, ?, ?, ?, ?)", (user, username, 0, 10, 50, 0, 1))
                 print("profile made")
 
                 # commit changes
@@ -166,14 +110,18 @@ class HusciiQuest():
                 # fetch table row for the item
                 usercur.execute("SELECT * FROM Inventory WHERE Item = ?", [command])
                 item = usercur.fetchall()
+                # fetch profile
+                usercur.execute("SELECT * FROM Profile")
+                profile = usercur.fetchall()[0]
+
                 if(len(item) != 0):
                     item = item[0]
-                    if item[4] and item[1] != "Other":
-                        response = "Item is already equipped"
+                    if (item[4] and item[1] != "Other") or item[5] > profile[6]:
+                        if item[5] > profile[6]:
+                            response = "You are not high enough level, required level is: " + str(item[5])
+                        else:
+                            response = "Item is already equipped"
                     else:
-                        # fetch profile
-                        usercur.execute("SELECT * FROM Profile")
-                        profile = usercur.fetchall()[0]
                         if item[1] == 'Twohand':
                             usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", (item[0], 'Weapon'))
                             usercur.execute("UPDATE Equipment SET Item = ? WHERE Slot = ?", (item[0], 'Offhand'))
@@ -302,30 +250,9 @@ class HusciiQuest():
                 response = HusciiQuest.scrollify(response)
 
         if command.startswith("fight"):
-            print('''
-         xXXX  XXXXXXXX
-         XX::XX........Xx
-          XX""""OO..OOXX
-          XX""""""""....XX
-        xX..""""""""""""XX
-       XX....""xxMM^^MM..
-      xX..""""""""xxMM
-      XX""""""""mm""mm
-      xx""""xxxx..""..XX
-      XXxx""""""xx""""XX
-      XXxxxx""""xx""XXXX
-``**--==XXMMMM""..MMMM..
-            ''')
-            response = "You encountered a rat."
-            response += "\nYou killed a rat.\n"
-            drop = HusciiQuest.genItem()
-            response += drop[0]
-            if drop[2] == 'onehand':
-                slot = 'Weapon'
-            else:
-                slot = drop[2].title()
-            usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?, ?)", (drop[1], slot, drop[5], drop[4], 0, drop[3]))
-            usercon.commit()
+            # HQFight.start()
+            response = ''
+            response = HQFight.fight(command, channel, user, usercon, usercur)
 
         if command.startswith("drop"):
             print('test gen')
