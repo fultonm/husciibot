@@ -59,7 +59,22 @@ class HQShop():
                 response = "Can't find item"
             
             response = "`" + response + "`"
-            con.commit()
-            usercon.commit()
+        
+        if command.startswith('sell'):
+            command = command.split("sell")[1].strip()
+            usercur.execute("SELECT * FROM Inventory WHERE Item = ?", [command])
+            item = usercur.fetchall()
+            usercur.execute("SELECT * FROM Profile")
+            profile = usercur.fetchall()[0]
+            if(len(item) != 0):
+                item = item[0]
+                gold = profile[4] + item[2]
+                usercur.execute("UPDATE Profile SET Gold = ?", [gold])
+                usercur.execute("DELETE FROM Inventory WHERE Item = ?", [command])
+            else:
+                response = "Can't find item"
+
+        con.commit()
+        usercon.commit()
 
         return response
