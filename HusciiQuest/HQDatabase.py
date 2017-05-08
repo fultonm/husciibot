@@ -9,7 +9,7 @@ slack_client = SlackClient(keys.key)
 
 class UserDB:
     """
-        Initialize the HQDatabse on a certain users
+        Initialize the HQDatabse on a certain user
 
         ~ self.user : The userID being passed in through constructor
         ~ self.con : Sqlite3 connection to the user's database.
