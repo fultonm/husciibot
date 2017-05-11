@@ -1,3 +1,12 @@
+"""
+   __ ______    ___       __       __                
+  / // / __ \  / _ \___ _/ /____ _/ /  ___ ____ ___  
+ / _  / /_/ / / // / _ `/ __/ _ `/ _ \/ _ `(_-</ -_) 
+/_//_/\___\_\/____/\_,_/\__/\_,_/_.__/\_,_/___/\__/  
+
+
+"""
+
 import sqlite3
 import math
 from Huscii import Huscii
@@ -7,9 +16,33 @@ keys = Huscii()
 BOT_ID = keys.id
 slack_client = SlackClient(keys.key)
 
+class UtilDB:
+
+    @staticmethod
+    def itemTuple(item):
+        item = {'item' : item[0], 'slot' : item[1], 'value' : item[2], 'rating' : item[3], 'equipped' : item[4], 'level' : item[5]}
+        return item
+
+    @staticmethod
+    def scrollify(response, i):
+            scrollTop =  "      _" + "_" * i + "_ \n"
+            scrollTop += "     /\ " + " " * i + "\ \n"
+            scrollTop += "(O)===)>" + "<>" * (int)(i/2) + "<)==(O) \n"
+            scrollTop += "     \/'" + "\'" * i + "/ \n"
+            scrollTop += "      |" + " " * i + "|\n"
+
+            scrollBot  = "      |" + " " * i + "|\n"
+            scrollBot += "     /\\'" + "\'" * i + "\ \n"
+            scrollBot += "(O)===)>" + "<>" * (int)(i/2) + "<)==(O) \n"
+            scrollBot += "     \/_" + "_" * i + "/"
+
+            response = "```" + scrollTop + response + scrollBot + "```"
+            return response
+
+
 class UserDB:
     """
-        Initialize the HQDatabse on a certain user
+        Initialize the HQDatabse on a certain users
 
         ~ self.user : The userID being passed in through constructor
         ~ self.con : Sqlite3 connection to the user's database.
@@ -108,12 +141,15 @@ class UserDB:
         self.equipment = self.cur.fetchall()
 
     def printProfile(self):
+        self.updateProfile()
         print(self.profile)
 
     def printInventory(self):
+        self.updateInventory()
         print(self.inventory)
 
     def printEquips(self):
+        self.updateEquipment()
         print(self.equipment)
 
     """
@@ -122,24 +158,34 @@ class UserDB:
     def getExp(self):
         return str(self.profile[2]) + '/' + str(self.profile[3])
 
+    """
+        Return the various values in the profile table of the user.
+    """
+    # UserID
     def getUserID(self):
         return self.profile[0]
 
+    # Username
     def getUsername(self):
         return self.profile[1]
 
+    # Current experience
     def getExpCur(self):
         return self.profile[2]
 
+    # Max experience
     def getExpMax(self):
         return self.profile[3]
 
+    # Gold
     def getGold(self):
         return self.profile[4]
 
+    # Combat rating
     def getCR(self):
         return self.profile[5]
 
+    # Level
     def getLevel(self):
         return self.profile[6]
 
@@ -151,7 +197,7 @@ class UserDB:
     def setGold(self, gold):
         self.cur.execute('UPDATE Profile SET Gold = ?', (gold,))
         self.con.commit()
-        self.updateProfile()
+
     """
         Adds exp to the current user if the amount is over the current max exp that the current
         level then it increments till the max exp reaches an amount over the current exp amount.
@@ -183,7 +229,6 @@ class UserDB:
 
         # Commit changes and update self.profile field
         self.con.commit()
-        self.updateProfile()
 
     """
         Set the combat rating of the user
@@ -196,7 +241,6 @@ class UserDB:
 
         # Commit changes and update self.profile field
         self.con.commit()
-        self.updateProfile()
 
     """
         Inserts a new item into the user's inventory table
@@ -205,7 +249,8 @@ class UserDB:
             ('item', 'slot', 'value', 'combat rating', 'equipped', 'level')
     """
     def addItem(self, item):
-        self.cur.execute('INSERT INTO Inventory VALUES(?, ?, ?, ?, ?, ?)', (item[0], item[1], item[2], item[3], 0, item[5]))
+        self.cur.execute('INSERT INTO Inventory VALUES(?, ?, ?, ?, ?, ?)', (item['item'], item['slot'], item['value'], item['rating'], 0, item['level']))
+        self.con.commit()
 
     """
         Removes an item from the user's inventory table
@@ -214,6 +259,7 @@ class UserDB:
     """
     def removeItem(self, item):
         self.cur.execute('DELETE FROM Inventory WHERE Item = ?', (item,))
+        self.con.commit()
 
     """
         Equips an item to the players equipment slots by inserting it into the equipment table, also updates the values
@@ -260,11 +306,9 @@ class UserDB:
 
         # Commit changes and update the self.profile and the self.inventory fields
         self.con.commit()
-        self.updateProfile()
-        self.updateInventory()
 
         # Return the response for bot to send
-        return response
+        return '`' + response + '`'
 
     """
         Unequips an item from the user, sets the equipment item columns to 'none', updates the profile cr, and updates
@@ -303,8 +347,72 @@ class UserDB:
 
         # Commit changes and update the self.profile and the self.inventory fields
         self.con.commit()
-        self.updateProfile()
-        self.updateInventory()
 
         # Return the response for bot to send
-        return response
+        return '`' + response + '`'
+
+class ShopDB:
+
+    def __init__(self, user):
+        if isinstance(user, str):
+            user = UserDB(user)
+        self.user = user
+        self.con = sqlite3.connect("hquest/shop.db")
+        self.cur = self.con.cursor()
+        # self.cur.execute("SELECT * FROM Shop");
+        # self.shop = self.cur.fetchall();
+
+    def start(self):
+        self.cur.execute("CREATE TABLE Shop(Item TEXT, Slot TEXT, Value INT, Rating INT, Equipped BOOLEAN,Level INT)")
+        self.cur.execute("INSERT INTO Shop VALUES(?, ?, ?, ?, ?, ?)", ("Cloth Hat", "Head", 10, 5, 0, 2))
+        self.cur.execute("INSERT INTO Shop VALUES(?, ?, ?, ?, ?, ?)", ("Cloth Gloves", "Hands", 10, 5, 0, 2))
+        self.cur.execute("INSERT INTO Shop VALUES(?, ?, ?, ?, ?, ?)", ("Cloth Tunic", "Chest", 10, 5, 0, 2))
+        self.cur.execute("INSERT INTO Shop VALUES(?, ?, ?, ?, ?, ?)", ("Cloth Pants", "Legs", 10, 5, 0, 2))
+        self.cur.execute("INSERT INTO Shop VALUES(?, ?, ?, ?, ?, ?)", ("Cloth Wraps", "Feet", 10, 5, 0, 2))
+        self.cur.execute("INSERT INTO Shop VALUES(?, ?, ?, ?, ?, ?)", ("Rusted Sword", "Weapon", 10, 5, 0, 2))
+        self.cur.execute("INSERT INTO Shop VALUES(?, ?, ?, ?, ?, ?)", ("Rusted Buckler", "Offhand", 10, 5, 0, 2))
+        print("Shop made")
+
+        self.con.commit()
+
+    def updateShop(self):
+        self.cur.execute("SELECT * FROM Shop");
+        self.shop = self.cur.fetchall();            
+
+    def list(self):
+        response = "      | %-32s %8s %4s %4s |\n" % ("Item", "Slot", "CR", "GP")
+        for i in range(0, len(shop)):
+            response += "      | %-32s %8s %4d %4d |\n" % (shop[i][0], shop[i][1], shop[i][2], shop[i][3])
+
+        return UtilDB.scrollify(response)
+
+    def buy(self, item):
+        self.cur.execute("SELECT * FROM Shop WHERE Item = ?", [item])
+        item = self.cur.fetchall()
+        # usercur.execute("SELECT * FROM Profile")
+        # profile = usercur.fetchall()[0]
+        # print(profile, item)
+
+        if(len(item) != 0):
+            item = UtilDB.itemTuple(item[0])
+            if  self.user.getGold() >= item['value']:
+                gold = self.user.getGold() - item['value']
+                print(type(gold))
+                # usercur.execute("UPDATE Profile SET Gold = ?", [gold])
+                self.user.setGold(gold)
+                # usercur.execute("INSERT INTO Inventory VALUES(?, ?, ?, ?, ?)", (item[0], item[1], item[3], item[2], 0)) 
+                self.user.addItem(item)
+                response = "You bought a " + item['item']
+            else:
+                response = "You don't have enough gold"
+        else:
+            response = "Can't find item"
+        
+        response = "`" + response + "`"
+
+        self.con.commit()
+        
+        return '`' + response + '`'
+
+    def sell():
+        pass
