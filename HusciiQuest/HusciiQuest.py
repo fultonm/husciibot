@@ -13,7 +13,7 @@ import random
 from Huscii import Huscii
 from HQShop import HQShop
 from HQFight import HQFight
-from HQDatabase import UserDB, ShopDB
+from HQDatabase import UserDB, ShopDB, TradeDB
 from slackclient import SlackClient
 
 keys = Huscii()
@@ -27,14 +27,19 @@ class HusciiQuest:
         # connect to user database
         # usercon = sqlite3.connect("hquest/" + user + ".db")
         # usercur = usercon.cursor()
-        # response = "Something went wrong with [hquest] type help for commands"
-
-        userData = UserDB(user)
-        shopData = ShopDB(user)
+        response = "Something went wrong with [hquest] type help for commands"
 
         # create a new profile
         if command.startswith("new profile"):
-            pass
+            response = UserDB.start(user)
+
+        try:
+            userData = UserDB(user)
+        except Exception:
+            return '`You Must create a profile, use [new profile]`'
+
+        shopData = ShopDB(userData)
+        trade = TradeDB(userData)
 
         # handle commands with items
         if command.startswith("item"):
@@ -85,7 +90,7 @@ class HusciiQuest:
         if command.startswith("fight"):
             # HQFight.start()
             response = ''
-            response = HQFight.fight(command, channel, user, usercon, usercur)
+            response = HQFight.fight(command, channel, userData)
 
         if command.startswith("drop"):
             print('test gen')
@@ -95,6 +100,49 @@ class HusciiQuest:
             item = (gen[1], gen[2], gen[4])
             print(response, item)
 
+        if command.startswith("trade"):
+            # TradeDB.start()
+            # @husciibot husciiquest trade open partner
+            command = command.split('trade')[1].strip()
+            if command.startswith('open'):
+                command = command.split('open')[1].strip()
+                if len(command):
+                    response = TradeDB.open(userData, command)
+                    # response = 'You opened a trade with ' + command
+                else:
+                    response = 'You must enter a trade partner'
+
+            elif command.startswith('list'):
+                response = trade.display()
+
+            elif command.startswith('offer'):
+                command = command.split('offer')[1].strip()
+                # print(command)
+                partner = command.split(' ')[0]
+                # print(partner)
+                command = command.split(partner)
+                # print(command)
+                if len(command) == 2:
+                    response = trade.offer(partner, command[1].strip())
+                else:
+                    response = '`Couldn\'t offer item.`'
+
+            elif command.startswith('accept'):
+                command = command.split('accept')[1].strip()
+                response = trade.accept(command)
+
+            elif command.startswith('reject'):
+                command = command.split('reject')[1].strip()
+                response = trade.reject(command)
+
+            elif command.startswith('stop'):
+                command = command.split('stop')[1].strip()
+                response = trade.stop(command)
+
+
+        userData.close_con()
+        shopData.close_con()
+        trade.close_con()
         return response
 
 """
