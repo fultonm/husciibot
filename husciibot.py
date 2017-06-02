@@ -51,13 +51,13 @@ def handle_command(command, channel, user):
         response = responses[command]
     
     # catfact
-    if command.startswith('catfact'):
+    elif command.startswith('catfact'):
         call = requests.get('http://catfacts-api.appspot.com/api/facts?number=1')
         fact = json.loads(call.text)
         response = fact['facts'][0]
     
     #events
-    if command.startswith("event"):
+    elif command.startswith("event"):
         eventCommand = command.split("event")
         commandList = eventCommand[1].split(" ")
 
@@ -71,12 +71,12 @@ def handle_command(command, channel, user):
             response = "Event added"
 
         
-        if commandList[1].startswith("delete"):
+        elif commandList[1].startswith("delete"):
             deleteCommand = command.split("delete")[1].strip()
             cur.execute("DELETE FROM Events WHERE Id == ?", deleteCommand)
             response = "Event deleted"
         
-        if commandList[1].startswith("list"):
+        elif commandList[1].startswith("list"):
             cur.execute("SELECT * FROM Events")
             event_names = [en[0] for en in cur.description]
             event = cur.fetchall()
@@ -88,7 +88,7 @@ def handle_command(command, channel, user):
     response = "`"  + response + "`"
 
     #quest
-    if command.startswith("hquest"):
+    elif command.startswith("hquest"):
         command = command.split("hquest")[1].strip()
         print command
         response = husciiQuest(command, channel, user)
