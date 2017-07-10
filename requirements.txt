@@ -1,0 +1,4 @@
+requests
+SlackClient
+pymongo
+datefinder

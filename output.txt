@@ -1,0 +1,3 @@
+[{u'source_team': u'T530VMCFN', u'text': u'test', u'ts': u'1493068305.029616', u'user': u'U530VMCJG', u'team': u'T530VMCFN', u'type': u'message', u'channel': u'C5325DHD3'}]
+[{u'type': u'user_typing', u'user': u'U530VMCJG', u'channel': u'C5325DHD3'}]
+[{u'source_team': u'T530VMCFN', u'text': u'<@U53PZGKJT> test', u'ts': u'1493068308.030726', u'user': u'U530VMCJG', u'team': u'T530VMCFN', u'type': u'message', u'channel': u'C5325DHD3'}]
